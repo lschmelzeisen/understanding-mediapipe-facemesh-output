@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Understanding MediaPipe Face Mesh Output</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1620248257/drawing_utils.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.min.js"></script>
+    <script src="face.png.js"></script>
+    <script src="uvcoords.js"></script>
+
+    <script type="module">
+      // --- Constants
+      const outputSize = 4000;
+      const colorBackground = { color: "#E0E0E0" };
+      const colorTriangles = { color: "#C0C0C070", lineWidth: 4 };
+      const colorSilhouette = { color: "#30FFFF70", lineWidth: 4 };
+      const colorRightEye = { color: "#FF303070", lineWidth: 4 };
+      const colorLeftEye = { color: "#30FF3070", lineWidth: 4 };
+      const colorLips = { color: "#3030FF70", lineWidth: 4 };
+
+      // --- Load Image
+      const image = new Image();
+      image.crossOrigin = "anonymous";
+      image.src = FACE_PNG_DATA_URL;
+      await image.decode();
+
+      // --- Get FaceMesh landmarks
+      const faceMesh = new FaceMesh({
+        locateFile: (file) =>
+          `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@${VERSION}/${file}`,
+      });
+
+      let unrefinedLandmarks = undefined;
+      faceMesh.setOptions({ staticImageMode: true, enableFaceGeometry: true });
+      faceMesh.onResults((results) => (unrefinedLandmarks = results));
+      await faceMesh.send({ image });
+
+      let refinedLandmarks = undefined;
+      faceMesh.setOptions({ refineLandmarks: true, enableFaceGeometry: false });
+      faceMesh.onResults((results) => (refinedLandmarks = results));
+      await faceMesh.send({ image });
+
+      // --- Create document
+      const button = document.createElement("button");
+      button.append(document.createTextNode("Download next"));
+      document.body.append(button);
+      document.body.append(document.createElement("br"));
+
+      const downloadLink = document.createElement("a");
+      // Not appended to document because we click it via .click() and not user.
+
+      const canvas = document.createElement("canvas");
+      canvas.width = outputSize;
+      canvas.height = outputSize;
+      document.body.append(canvas);
+      const ctx = canvas.getContext("2d");
+
+      // --- Download function
+      function downloadImage(fileName) {
+        downloadLink.setAttribute("download", fileName);
+        canvas.toBlob((blob) => {
+          const url = URL.createObjectURL(blob);
+          downloadLink.setAttribute("href", url);
+          downloadLink.click();
+        });
+      }
+
+      // --- Configuration to draw
+      const configs = [
+        { uvCoords: false, face: false, refined: false, numbered: false },
+        { uvCoords: false, face: false, refined: false, numbered: true },
+        { uvCoords: false, face: false, refined: true, numbered: false },
+        { uvCoords: false, face: false, refined: true, numbered: true },
+        { uvCoords: false, face: true, refined: false, numbered: false },
+        { uvCoords: false, face: true, refined: false, numbered: true },
+        { uvCoords: false, face: true, refined: true, numbered: false },
+        { uvCoords: false, face: true, refined: true, numbered: true },
+        { uvCoords: true, face: false, refined: false, numbered: false },
+        { uvCoords: true, face: false, refined: false, numbered: true },
+      ];
+
+      // --- Generate next image on button click and download it
+      let curConfig = -1;
+      button.addEventListener("click", function () {
+        button.disabled = true;
+
+        if (curConfig === -1) {
+          ctx.fillStyle = colorBackground.color;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+          downloadImage("face.png");
+          ++curConfig;
+        } else if (curConfig === configs.length) {
+          alert("Done!");
+        } else {
+          const config = configs[curConfig];
+          ++curConfig;
+
+          console.assert(!(config.uvCoords && config.face));
+          console.assert(!(config.uvCoords && config.refined));
+
+          let filenameParts = [];
+          if (config.uvCoords) filenameParts.push("uvCoords");
+          if (config.face) filenameParts.push("face");
+          if (config.refined) filenameParts.push("refined");
+          if (!config.uvCoords) filenameParts.push("landmarks");
+          if (config.numbered) filenameParts.push("numbered");
+          const filename = filenameParts.join("-") + ".png";
+          console.log(`Drawing ${filename}`);
+
+          let landmarks = unrefinedLandmarks.multiFaceLandmarks[0];
+          if (config.refined)
+            landmarks = refinedLandmarks.multiFaceLandmarks[0];
+          else if (config.uvCoords) landmarks = FACEMESH_UVCOORDS;
+
+          ctx.fillStyle = colorBackground.color;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          if (config.face)
+            ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+          drawConnectors(ctx, landmarks, FACEMESH_TESSELATION, colorTriangles);
+          drawConnectors(ctx, landmarks, FACEMESH_FACE_OVAL, colorSilhouette);
+          drawConnectors(ctx, landmarks, FACEMESH_RIGHT_EYE, colorRightEye);
+          drawConnectors(ctx, landmarks, FACEMESH_RIGHT_EYEBROW, colorRightEye);
+          drawConnectors(ctx, landmarks, FACEMESH_RIGHT_IRIS, colorRightEye);
+          drawConnectors(ctx, landmarks, FACEMESH_LEFT_EYE, colorLeftEye);
+          drawConnectors(ctx, landmarks, FACEMESH_LEFT_EYEBROW, colorLeftEye);
+          drawConnectors(ctx, landmarks, FACEMESH_LEFT_IRIS, colorLeftEye);
+          drawConnectors(ctx, landmarks, FACEMESH_LIPS, colorLips);
+
+          if (config.numbered) {
+            ctx.font = "10px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = "black";
+            ctx.fillStyle = "white";
+            for (const [i, landmark] of landmarks.entries()) {
+              ctx.strokeText(
+                i.toString(),
+                landmark.x * canvas.width,
+                landmark.y * canvas.height
+              );
+              ctx.fillText(
+                i.toString(),
+                landmark.x * canvas.width,
+                landmark.y * canvas.height
+              );
+            }
+          }
+
+          downloadImage(filename);
+        }
+
+        button.disabled = false;
+      });
+    </script>
+  </head>
+  <body></body>
+</html>
