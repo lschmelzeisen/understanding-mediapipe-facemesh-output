@@ -49,6 +49,17 @@ refined model.
 Therefore, there is no UV coordinates visualization available for the refined
 model.
 
+## Raw output
+
+The following JSON files represent the raw output of the Face Mesh module:
+
+- [`landmarks.json`](https://github.com/lschmelzeisen/understanding-mediapipe-facemesh-output/releases/download/v1.1.0/landmarks.json)
+- [`refined-landmarks.json`](https://github.com/lschmelzeisen/understanding-mediapipe-facemesh-output/releases/download/v1.1.0/refined-landmarks.json)
+- [`geometry.json`](https://github.com/lschmelzeisen/understanding-mediapipe-facemesh-output/releases/download/v1.1.0/geometry.json)
+  (estimated via the regular/unrefined model.)
+
+Sadly, the refined model does not seem to be able to estimate face geometry.
+
 ## Further resources
 
 - The MediaPipe project provides an [official UV coordinate visualization](https://github.com/google/mediapipe/blob/63e679d99ca45b30514a9d84c9351a2d77bb9ba0/mediapipe/modules/face_geometry/data/canonical_face_model_uv_visualization.png)
