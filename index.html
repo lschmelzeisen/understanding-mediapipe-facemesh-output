@@ -36,10 +36,27 @@
       faceMesh.onResults((results) => (unrefinedLandmarks = results));
       await faceMesh.send({ image });
 
+      console.assert(unrefinedLandmarks.multiFaceLandmarks.length == 1);
+      console.assert(unrefinedLandmarks.multiFaceGeometry.length == 1);
+
+      const meshProto = unrefinedLandmarks.multiFaceGeometry[0].getMesh();
+      const mesh = {
+        primitiveType: meshProto.getPrimitiveType(),
+        vertexType: meshProto.getVertexType(),
+        vertexBufferList: Array.from(meshProto.getVertexBufferList()),
+        indexBufferList: Array.from(meshProto.getIndexBufferList()),
+      };
+      const poseTransformMatrixProto =
+        unrefinedLandmarks.multiFaceGeometry[0].getPoseTransformMatrix();
+      const poseTransformMatrix = matrixDataToMatrix(poseTransformMatrixProto);
+
       let refinedLandmarks = undefined;
       faceMesh.setOptions({ refineLandmarks: true, enableFaceGeometry: false });
       faceMesh.onResults((results) => (refinedLandmarks = results));
       await faceMesh.send({ image });
+
+      console.assert(refinedLandmarks.multiFaceLandmarks.length == 1);
+      console.assert(refinedLandmarks.multiFaceGeometry.length == 0);
 
       // --- Create document
       const button = document.createElement("button");
@@ -66,6 +83,15 @@
         });
       }
 
+      function downloadText(fileName, content) {
+        downloadLink.setAttribute("download", fileName);
+        downloadLink.setAttribute(
+          "href",
+          "data:text/plain;charset=utf-8," + encodeURIComponent(content)
+        );
+        downloadLink.click();
+      }
+
       // --- Configuration to draw
       const configs = [
         { uvCoords: false, face: false, refined: false, numbered: false },
@@ -81,11 +107,36 @@
       ];
 
       // --- Generate next image on button click and download it
-      let curConfig = -1;
+      let curConfig = -4;
       button.addEventListener("click", function () {
         button.disabled = true;
 
-        if (curConfig === -1) {
+        if (curConfig === -4) {
+          downloadText(
+            "landmarks.json",
+            JSON.stringify(unrefinedLandmarks.multiFaceLandmarks[0], null, 2)
+          );
+          ++curConfig;
+        } else if (curConfig === -3) {
+          downloadText(
+            "refined-landmarks.json",
+            JSON.stringify(refinedLandmarks.multiFaceLandmarks[0], null, 2)
+          );
+          ++curConfig;
+        } else if (curConfig === -2) {
+          downloadText(
+            "geometry.json",
+            JSON.stringify(
+              {
+                mesh,
+                poseTransformMatrix,
+              },
+              null,
+              2
+            )
+          );
+          ++curConfig;
+        } else if (curConfig === -1) {
           ctx.fillStyle = colorBackground.color;
           ctx.fillRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
